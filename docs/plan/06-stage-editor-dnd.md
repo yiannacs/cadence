@@ -16,7 +16,7 @@ UX step 5: show the staged result as columns/rows per stage plus an "Unplaced" b
    - Dropping a track outside the stage's BPM range is allowed — it's a manual override.
    - The anchor is draggable within the UI but **cannot leave its own stage** (it's guaranteed to be included). Visually mark the anchor.
    - Dropped no-BPM tracks need a position: order them as if their BPM = stage center. Set the synthetic BPM on the client's copy of the track *before* calling `recomputeStage`.
-4. **Synthetic caching on drop** — `POST /api/bpm/synthetic { trackId, bpm: centerBpm, tolerance: spreadBpm }` → `cache.set(..., source: 'synthetic')`.
+4. **Synthetic caching on drop** — `POST /api/bpm/synthetic { trackId, bpm: centerBpm, tolerance: spreadBpm }` → `cache.set(..., source: 'synthetic')`. Requires the session cookie, like all `/api/bpm/*` routes (see F3).
    - Fire **only** when the track's current BPM is `null`, or its current source is already `synthetic` (re-dropping into a different stage updates the guess).
    - Never for `api` / `manual` tracks — the cache's precedence rule would reject it anyway, but don't send the request.
    - Update the client's copy of the track so the badge flips to `synthetic` immediately.
@@ -24,8 +24,11 @@ UX step 5: show the staged result as columns/rows per stage plus an "Unplaced" b
 
 ## Optional (nice to have, not required for MVP)
 
-- Correcting wrong-octave API BPMs (e.g. half-time) is **not** in the MVP — see "Future work" in [PLAN.md](PLAN.md).
 - Keyboard drag support (dnd-kit's `KeyboardSensor`).
+
+## Notes
+
+- Correcting wrong-octave API BPMs (e.g. half-time) is not in the MVP — see "Future work" in [PLAN.md](PLAN.md).
 
 ## Acceptance
 

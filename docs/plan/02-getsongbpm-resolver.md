@@ -85,7 +85,7 @@ Coalesce in `scheduleFlush` — at most one running plus one queued flush (about
 ## Notes
 
 - **Half-time / double-time** is common (live: "Don't Stop Me Now" → `80`; commonly cited ≈156). F2 stores the raw value. How the app corrects it is future work (see PLAN.md) — the drag-and-drop editor alone can't, since synthetic never overwrites api values.
-- Client components must import `BpmSource` from `lib/bpm/types.ts` (or `lib/types.ts`), never from `lib/bpm/index.ts` / `cache.ts`, which pull in `node:fs`.
+- Client components must import `BpmSource` from `lib/bpm/types.ts`, never from `lib/bpm/index.ts` / `cache.ts`, which pull in `node:fs`.
 - The in-app "BPM data from GetSongBPM" link is optional (the README backlink satisfies the terms); if added, it belongs in F3's UI, not here — F2 is a server-only library.
 
 ## Acceptance

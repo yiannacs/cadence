@@ -19,7 +19,7 @@ BPM comes from **GetSongBPM** (free, name-based: send artist + title, get BPM + 
 - The user defines `n` **stages**.
 - Each stage has a **duration** `d_i` (target amount of music).
 - Each stage has an **anchor song** `a_i`. The anchor's only job is to set the stage's target BPM — the user chooses by feel, never by number. anchor BPM → stage center BPM.
-- Stages are in **run order**, which the user sets. Each stage owns a **BPM range** bounded by the midpoints between its anchor and its run-order neighbours' anchors: a neighbour with a higher BPM sets the upper bound, one with a lower BPM sets the lower bound; no neighbour on a side → unbounded on that side. Contiguous stages therefore never overlap; an anchor may sit at the edge of its own range.
+- Stages are in **run order**, which the user sets. Each stage owns a **BPM range** bounded by the midpoints between its anchor and its run-order neighbours' anchors: the upper bound is the nearest midpoint to a higher-BPM neighbour, the lower bound the nearest midpoint to a lower-BPM neighbour; no neighbour on a side → unbounded on that side. Contiguous stages therefore never overlap; an anchor may sit at the edge of its own range.
 - **Contiguous stages may not have equal anchor BPMs.** The app tells the user and merges them into one stage. Non-contiguous stages may share a BPM.
 - Non-contiguous stages **can overlap** (e.g. warmup and cooldown both covering the slow end). Tracks in an overlap are allocated **randomly** (seeded, so a build is reproducible) to one of the stages covering them.
 - The app fills each stage from its range with the nearest-BPM tracks until the stage's total track length ≥ `d_i`.
@@ -105,8 +105,8 @@ Then, once those two work: pick a source playlist → fetch + cache BPM for its 
 
 1. Log in with Spotify.
 2. Pick a source playlist.
-3. Define stages: for each, set a duration and pick an anchor song from the playlist.
-4. App fetches/caches BPM and fills each stage (nearest-to-anchor, sorted, deduped, until duration met).
+3. Define stages in run order: for each, set a duration and pick an anchor song from the playlist.
+4. App fetches/caches BPM and fills each stage (nearest-to-anchor within its range, deduped, until duration met, ordered by direction).
 5. Show the staged result; user can drag any/unmatched tracks between stages (synthetic BPM cached on drop). Stages are re-ordered by their direction after each drop.
 6. Export → saves the ordered playlist to Spotify.
 

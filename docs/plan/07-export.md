@@ -4,7 +4,7 @@ Back to [PLAN.md](PLAN.md)
 
 ## Goal
 
-UX step 6: save the staged result as one new playlist on the user's Spotify profile, in exactly the order shown (stage 1 tracks ascending, then stage 2, …). Unplaced tracks are not exported.
+UX step 6: save the staged result as one new playlist on the user's Spotify profile, in exactly the order shown (stage 1 in its play order, then stage 2, …). Unplaced tracks are not exported.
 
 ## Scope
 

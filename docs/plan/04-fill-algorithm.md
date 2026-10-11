@@ -28,7 +28,7 @@ Example — warmup 150, build 160, peak 172, cooldown 145:
 
 ### Equal contiguous anchors
 
-Two **contiguous** stages with the **same** anchor BPM are not allowed. `validateStages` reports it; F5 tells the user and **merges** them into one stage (the first one's anchor; duration = sum of both — assumption, revisit if wrong). Non-contiguous stages may share a BPM.
+Two **contiguous** stages with the **same** anchor BPM are not allowed. `mergeEqualContiguous` merges each run of them into one stage (the first one's anchor; duration = sum — assumption, revisit if wrong); F5 tells the user and calls it before filling. Non-contiguous stages may share a BPM.
 
 ### Overlap between non-contiguous stages
 
@@ -84,13 +84,14 @@ export interface FilledStage<T extends FillTrack> {
 }
 
 export function validateStages(stages: StageSpec[], pool: FillTrack[]): StageProblem[]
+export function mergeEqualContiguous(stages: StageSpec[], pool: FillTrack[]): { stages: StageSpec[]; merged: string[][] }
 export function fillStages<T extends FillTrack>(stages: StageSpec[], pool: T[], seed: number):
   { stages: FilledStage<T>[]; unplaced: T[] }
 export function recomputeStage<T extends FillTrack>(stage: FilledStage<T>, tracks: T[]): FilledStage<T>
 ```
 
 - `hasBpm(t) = Number.isFinite(t.bpm) && t.bpm > 0` — used everywhere; `null`, `NaN`, `0`, negatives all count as "no BPM".
-- `validateStages` returns `{ stageId, reason }[]` so F5 can show per-stage problems and disable Build: duration not finite or ≤ 0; anchor missing from the pool; anchor without a BPM; the same track anchoring two stages; contiguous anchors with equal BPM; duplicate stage IDs; duplicate pool IDs. `fillStages` throws on the same checks (except equal contiguous anchors, which F5 merges before calling).
+- `validateStages` returns `{ stageId, reason }[]` so F5 can show per-stage problems and disable Build: duration not finite or ≤ 0; anchor missing from the pool; anchor without a BPM; the same track anchoring two stages; contiguous anchors with equal BPM; duplicate stage IDs; duplicate pool IDs. Equal contiguous anchors are reported as a notice, not a blocking problem. `fillStages` throws on all of these checks — callers merge first.
 - **Never mutate inputs** (they're React state). Copy before sorting.
 - `spreadBpm = max(3, max |bpm − centerBpm|)` over the stage's tracks with a BPM. The center is the anchor, not the midpoint of the stage, so half the range would understate it.
 - `recomputeStage` (F6 calls it after every drop): pure; returns a new object; throws if the anchor is missing; re-reads the center from the anchor's current BPM; keeps `direction` and `rangeBpm`; orders tracks by `direction`, placing no-BPM tracks as if their BPM were the center; spread ignores no-BPM tracks; recomputes totals and shortfall from `targetMs`. F6 sets a dropped track's synthetic BPM on its copy *before* calling it.
@@ -112,6 +113,7 @@ Cases:
 - Non-contiguous overlap: same seed → identical output; different seeds can differ; rebalance gives a short stage the overlap tracks the other didn't need.
 - Short range → `shortfallMs > 0`, no borrowing across a contiguous boundary.
 - Direction for every row of the direction table, including first/last/single stage and the alternating split.
+- `mergeEqualContiguous`: a pair, a run of three, and equal non-contiguous anchors left alone.
 - Validation: non-finite or ≤ 0 duration, NaN/0/negative BPM, anchor not in pool, anchor without BPM, duplicate anchors, contiguous equal anchors, duplicate stage IDs, duplicate pool IDs.
 - Empty `stages` → `{ stages: [], unplaced: pool }`; empty pool.
 - Inputs not mutated (frozen fixtures); output unchanged when the pool is shuffled (same seed).

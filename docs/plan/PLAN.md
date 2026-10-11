@@ -6,7 +6,7 @@ Source of truth for *what* to build: [`../CADENCE.md`](../CADENCE.md). This file
 
 | Area | Status | Where |
 |---|---|---|
-| Spotify OAuth (login / callback / logout, cookie tokens, refresh helper) | **Done** | `app/api/{login,callback,logout}`, `lib/spotify/auth.ts` |
+| Spotify OAuth (login / callback / logout, cookie tokens, refresh helper) | **Done, but** refreshed tokens are never saved back to cookies; fixed in F1 | `app/api/{login,callback,logout}`, `lib/spotify/auth.ts` |
 | BPM cache storage (JSON file, provenance, miss TTL) | **Done, but buggy** — precedence rule blocks synthetic-over-miss; fixed in F2 | `lib/bpm/cache.ts`, `lib/bpm/types.ts` |
 | GetSongBPM client + `getBpm()` resolver | Not started | → [F2](02-getsongbpm-resolver.md) |
 | Everything after build-order step 2 | Not started | → F3–F7 |
@@ -38,7 +38,7 @@ F0 is one small commit on `main`. After it, F1, F2 and F4 are independent and ca
 
 ## Cross-cutting decisions
 
-- **Server/client split.** All Spotify and GetSongBPM calls live in Route Handlers or Server Components. The browser never sees `SPOTIFY_CLIENT_SECRET` or `GETSONGBPM_API_KEY`, and never calls either API directly.
+- **Server/client split.** All Spotify and GetSongBPM calls live in Route Handlers, Server Components or `proxy.ts` (token refresh). The browser never sees `SPOTIFY_CLIENT_SECRET` or `GETSONGBPM_API_KEY`, and never calls either API directly.
 - **Run state lives on the client.** The chosen playlist, its tracks + BPMs, the stage definitions and the filled result are held in React state on one builder page (optionally mirrored to `localStorage` so a refresh doesn't lose work). The server holds only tokens (cookies) and the BPM cache (JSON file). No database.
 - **One shared track type.** Lives in `lib/types.ts`, created in F0, used everywhere after:
   ```ts
@@ -69,4 +69,4 @@ F0 is one small commit on `main`. After it, F1, F2 and F4 are independent and ca
 
 ## Definition of done (MVP)
 
-Log in → pick a playlist → define stages by duration + anchor → see the filled BPM staircase → drag tracks around (misses get synthetic BPM) → export → the playlist appears in Spotify in exactly the order shown.
+Log in → pick a playlist → define stages by duration + anchor → see the filled BPM profile → drag tracks around (misses get synthetic BPM) → export → the playlist appears in Spotify in exactly the order shown.

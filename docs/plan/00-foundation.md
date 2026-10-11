@@ -15,7 +15,7 @@ One small commit on `main` **before** F1, F2 and F4 branch off, so the parallel 
    - Scripts: `"test": "vitest run"`, `"test:watch": "vitest"`.
    - No jsdom / React Testing Library yet — Next's Vitest guide sets those up for component tests, which nothing needs so far.
    - Import `describe/it/expect` from `vitest` explicitly (no `globals: true`); `next build` type-checks test files too.
-2. **Shared types** — `lib/types.ts` with `Track` and `TrackWithBpm` (see PLAN.md), importing only `type { BpmSource } from './bpm/types'`. Lives outside `lib/spotify/*` and `lib/bpm/{index,cache}.ts` because client components (F4–F6) import it and must never pull in `node:fs`.
+2. **Shared types** — `lib/types.ts` with `Track` and `TrackWithBpm` (see PLAN.md), importing only `type { BpmSource } from './bpm/types'`. Lives outside `lib/spotify/*` and `lib/bpm/{index,cache}.ts` because client components (F5, F6) import it and must never pull in `node:fs`.
 3. **`.gitignore`** — add `/data/`. The BPM cache (and stray `.tmp` files) must never be committed; the repo is public.
 
 ## Acceptance
