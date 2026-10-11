@@ -9,14 +9,18 @@ UX steps 2 and 4a: the user picks one of their playlists, the app loads its trac
 ## Scope
 
 1. **Playlist picker page** (e.g. `app/build/page.tsx`, Server Component) — lists `getMyPlaylists()` with name, track count, cover. Redirect to `/` if not logged in. Selecting one navigates to `/build/[playlistId]`.
+   - Only playlists with `isOwn` are selectable (Spotify Dev Mode returns 403 for others). Show the rest disabled with a hint: "Spotify only lets this app read playlists you own".
 2. **Route Handler `GET /api/playlists/[id]/tracks`** — returns `TrackWithBpm[]`:
    - fetch tracks via F1,
    - return immediately with whatever BPMs the cache already has,
    - so the UI can render fast; resolution of the rest happens in step 3.
 3. **Resolution endpoint `POST /api/bpm/resolve`** — body: list of `{ id, artist, title }`; resolves via `getBpm` (F2) and returns results.
    - Long playlists + a rate-limited API = this can take a while. Stream progress (NDJSON / `ReadableStream` response) or have the client call in chunks of ~20 and update state as each returns. Chunked calls are simpler; prefer that unless it feels sluggish.
-   - Flush the cache once per chunk (see F2 batch flush).
+   - Flushes are coalesced inside the cache (F2 §6); nothing to do here.
+   - The route requires the Spotify session cookie — `next dev -H 0.0.0.0` exposes it to the LAN, and anyone could burn the GetSongBPM hourly budget.
+   - Per-track errors (rate block, outage) come back as "unresolved", not as a miss. If F2's circuit breaker trips, stop sending chunks and show the reason (e.g. "GetSongBPM key invalid", "rate limit — try again in an hour").
 4. **Track list UI** — compact table: title, artist, duration, BPM, source badge (`api` / `manual` / `synthetic` / `—`). Summary line: "212 / 240 tracks have a BPM". Progress indicator while resolving.
+5. Optional: small footer link "BPM data from GetSongBPM" (the README backlink already satisfies their terms).
 
 ## Notes
 
@@ -27,4 +31,4 @@ UX steps 2 and 4a: the user picks one of their playlists, the app loads its trac
 
 - Picking a 200+ track playlist shows the full list within a couple of seconds, then BPMs fill in progressively.
 - Re-opening the same playlist resolves almost instantly (cache hits).
-- `data/bpm-cache.json` contains entries for every track after one pass.
+- `data/bpm-cache.json` contains entries for every track after one pass, except tracks whose lookup errored (those stay uncached and are retried next time).
