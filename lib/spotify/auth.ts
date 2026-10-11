@@ -26,6 +26,22 @@ export interface TokenSet {
   expiresAt: number // unix ms
 }
 
+/**
+ * A failed call to Spotify's token endpoint. `code` is Spotify's OAuth error
+ * code (e.g. 'invalid_grant' for a revoked or expired refresh token), so
+ * callers can tell "log in again" apart from a transient failure.
+ */
+export class SpotifyAuthError extends Error {
+  constructor(
+    readonly status: number,
+    readonly code: string,
+    readonly description: string | null
+  ) {
+    super(`Spotify token request failed ${status}: ${code}${description ? ` (${description})` : ''}`)
+    this.name = 'SpotifyAuthError'
+  }
+}
+
 function basicAuthHeader(): string {
   return (
     'Basic ' +
@@ -35,78 +51,63 @@ function basicAuthHeader(): string {
   )
 }
 
-export async function exchangeCode(code: string): Promise<TokenSet> {
+// A fetch rejection propagates untouched: that's a network failure, not
+// Spotify saying no.
+async function requestToken(body: URLSearchParams): Promise<Record<string, unknown>> {
   const res = await fetch(SPOTIFY_TOKEN_URL, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',
       Authorization: basicAuthHeader(),
     },
-    body: new URLSearchParams({
+    body,
+  })
+
+  const text = await res.text()
+  let data: Record<string, unknown> = {}
+  try {
+    data = JSON.parse(text)
+  } catch {
+    // Non-JSON body (e.g. a gateway error page); carry on with no fields.
+  }
+
+  if (!res.ok) {
+    const code = typeof data.error === 'string' ? data.error : `http_${res.status}`
+    const description =
+      typeof data.error_description === 'string' ? data.error_description : text || null
+    throw new SpotifyAuthError(res.status, code, description)
+  }
+
+  return data
+}
+
+export async function exchangeCode(code: string): Promise<TokenSet> {
+  const data = await requestToken(
+    new URLSearchParams({
       grant_type: 'authorization_code',
       code,
       redirect_uri: process.env.SPOTIFY_REDIRECT_URI!,
-    }),
-  })
-
-  if (!res.ok) {
-    const body = await res.text()
-    throw new Error(`Token exchange failed ${res.status}: ${body}`)
-  }
-
-  const data = await res.json()
+    })
+  )
   return {
-    accessToken: data.access_token,
-    refreshToken: data.refresh_token,
-    expiresAt: Date.now() + data.expires_in * 1000,
+    accessToken: data.access_token as string,
+    refreshToken: data.refresh_token as string,
+    expiresAt: Date.now() + (data.expires_in as number) * 1000,
   }
 }
 
+/** Throws SpotifyAuthError when Spotify rejects the refresh token. */
 export async function refreshAccessToken(refreshToken: string): Promise<TokenSet> {
-  const res = await fetch(SPOTIFY_TOKEN_URL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
-      Authorization: basicAuthHeader(),
-    },
-    body: new URLSearchParams({
+  const data = await requestToken(
+    new URLSearchParams({
       grant_type: 'refresh_token',
       refresh_token: refreshToken,
-    }),
-  })
-
-  if (!res.ok) {
-    const body = await res.text()
-    throw new Error(`Token refresh failed ${res.status}: ${body}`)
-  }
-
-  const data = await res.json()
+    })
+  )
   return {
-    accessToken: data.access_token,
+    accessToken: data.access_token as string,
     // Spotify only returns a new refresh token occasionally; keep the old one if absent
-    refreshToken: data.refresh_token ?? refreshToken,
-    expiresAt: Date.now() + data.expires_in * 1000,
-  }
-}
-
-// Returns the current access token, refreshing if needed.
-// newTokens is populated when a refresh occurred — callers must write those back to cookies.
-export async function getValidToken(
-  accessToken: string | undefined,
-  refreshToken: string | undefined,
-  expiresAt: number
-): Promise<{ accessToken: string; newTokens?: TokenSet } | null> {
-  if (!refreshToken) return null
-
-  // Token good for at least another minute
-  if (accessToken && Date.now() < expiresAt - 60_000) {
-    return { accessToken }
-  }
-
-  try {
-    const newTokens = await refreshAccessToken(refreshToken)
-    return { accessToken: newTokens.accessToken, newTokens }
-  } catch {
-    return null
+    refreshToken: (data.refresh_token as string | undefined) ?? refreshToken,
+    expiresAt: Date.now() + (data.expires_in as number) * 1000,
   }
 }
