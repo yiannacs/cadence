@@ -12,9 +12,10 @@ UX step 5: show the staged result as columns/rows per stage plus an "Unplaced" b
 2. **Layout** — one container per stage (in run order) + one "Unplaced" container (no-BPM tracks first, then leftover tracks with BPM). Each track row: title, artist, duration, BPM + source badge.
 3. **Drag behaviour**
    - Move between any two containers, including back to Unplaced.
-   - After every drop, the affected stages are re-sorted ascending by BPM via `recomputeStage` (F4) — the user isn't hand-ordering *within* a stage (ascending BPM is the rule); Spotify itself is where they fine-tune order if they want.
+   - After every drop, the affected stages are re-ordered by their **direction** (ascending / descending / up-then-down / down-then-up, fixed at build time) via `recomputeStage` (F4) — the user isn't hand-ordering *within* a stage; Spotify itself is where they fine-tune order if they want.
+   - Dropping a track outside the stage's BPM range is allowed — it's a manual override.
    - The anchor is draggable within the UI but **cannot leave its own stage** (it's guaranteed to be included). Visually mark the anchor.
-   - Dropped no-BPM tracks need a position: sort them as if their BPM = stage center.
+   - Dropped no-BPM tracks need a position: order them as if their BPM = stage center. Set the synthetic BPM on the client's copy of the track *before* calling `recomputeStage`.
 4. **Synthetic caching on drop** — `POST /api/bpm/synthetic { trackId, bpm: centerBpm, tolerance: spreadBpm }` → `cache.set(..., source: 'synthetic')`.
    - Fire **only** when the track's current BPM is `null`, or its current source is already `synthetic` (re-dropping into a different stage updates the guess).
    - Never for `api` / `manual` tracks — the cache's precedence rule would reject it anyway, but don't send the request.
@@ -23,7 +24,7 @@ UX step 5: show the staged result as columns/rows per stage plus an "Unplaced" b
 
 ## Optional (nice to have, not required for MVP)
 
-- **Manual BPM entry** on a track (`source: 'manual'`) for when the user knows the API is wrong (e.g. half-time). The cache already supports it; it's just an input + endpoint. Note CADENCE.md's "user never types a BPM" is about the main flow — this would be an escape hatch.
+- Correcting wrong-octave API BPMs (e.g. half-time) is **not** in the MVP — see "Future work" in [PLAN.md](PLAN.md).
 - Keyboard drag support (dnd-kit's `KeyboardSensor`).
 
 ## Acceptance
