@@ -80,7 +80,7 @@ So: synthetic may replace an API miss; a miss never erases a value; synthetic ne
 
 ### 6. Flushes
 
-Coalesce in `scheduleFlush` — at most one running plus one queued flush (about 6 lines, no new API). This replaces the earlier `setMany`/debounce idea; 300 rewrites of a ~50 KB local file are cheap, and a debounce would weaken durability of user actions.
+Coalesce in `scheduleFlush` — at most one running plus one queued flush (about 6 lines, no new API). 300 rewrites of a ~50 KB local file are cheap, and a debounce would weaken durability of user actions.
 
 ## Notes
 

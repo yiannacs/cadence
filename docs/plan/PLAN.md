@@ -60,14 +60,6 @@ F0 is one small commit on `main`. After it, F1, F2 and F4 are independent and ca
 - **Next.js version.** This is Next 16 — read `node_modules/next/dist/docs/` before touching routing, cookies, or middleware (e.g. middleware is now `proxy`, see `01-app/01-getting-started/16-proxy.md`).
 - **Out of scope** (per CADENCE.md): playback, sources other than one playlist, recommendations, catalog-wide BPM search.
 
-## Changes from the original CADENCE.md
-
-Agreed during plan review (2026-10-11) and since written into `CADENCE.md`:
-
-- **Fill model** (F4): stages own BPM ranges bounded by midpoints to their run-order neighbours, instead of greedy fill in run order. Contiguous equal-BPM anchors are merged; overlap between non-contiguous stages is allocated randomly (seeded).
-- **Order within a stage** (F4): derived from the neighbouring anchors (ascending, descending, up-then-down, down-then-up), instead of always ascending.
-- **Cache precedence** (F2): synthetic may replace an API *miss* (`bpm: null`); otherwise synthetic < api < manual.
-
 ## Future work
 
 - **Wrong-octave API BPMs.** GetSongBPM often returns half or double the real tempo (live: "Don't Stop Me Now" → 80, commonly cited ≈156). Such a track lands in the wrong stage, and the MVP has no way to fix it: dragging only writes a synthetic BPM, which never overrides an API value. Not settled. Suggestions so far:

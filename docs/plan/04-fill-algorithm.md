@@ -6,8 +6,6 @@ Back to [PLAN.md](PLAN.md)
 
 A pure, deterministic function that turns stage specs + the playlist's tracks into filled, ordered stages. No I/O, no React, no imports from server code — so it can be unit-tested exhaustively and run on the client for instant re-fills.
 
-> **Deviation from CADENCE.md (agreed 2026-10-11).** The spec fills stages greedily in run order, which lets an earlier stage take tracks that are closer to a later anchor, and sorts every stage ascending. This plan replaces both: each stage owns a **BPM range bounded by midpoints to its run-order neighbours**, and each stage's **direction** is derived from those neighbours.
-
 ## Model
 
 ### Stage ranges
