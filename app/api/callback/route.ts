@@ -1,12 +1,7 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { exchangeCode } from '@/lib/spotify/auth'
 import { originOf } from '@/lib/http'
-
-const TOKEN_COOKIE_OPTS = {
-  httpOnly: true,
-  sameSite: 'lax' as const,
-  path: '/',
-}
+import { setTokenCookies } from '@/lib/spotify/session'
 
 export async function GET(request: NextRequest): Promise<Response> {
   const { searchParams } = new URL(request.url)
@@ -29,19 +24,7 @@ export async function GET(request: NextRequest): Promise<Response> {
     const tokens = await exchangeCode(code)
 
     const response = NextResponse.redirect(home)
-    response.cookies.set('sp_at', tokens.accessToken, {
-      ...TOKEN_COOKIE_OPTS,
-      maxAge: Math.floor((tokens.expiresAt - Date.now()) / 1000),
-    })
-    response.cookies.set('sp_rt', tokens.refreshToken, {
-      ...TOKEN_COOKIE_OPTS,
-      maxAge: 60 * 60 * 24 * 60,
-    })
-    response.cookies.set('sp_exp', String(tokens.expiresAt), {
-      ...TOKEN_COOKIE_OPTS,
-      maxAge: 60 * 60 * 24 * 60,
-    })
-
+    setTokenCookies(response.cookies, tokens)
     return response
   } catch (err) {
     console.error('[callback] token exchange error:', err)

@@ -1,5 +1,5 @@
-import { cookies } from 'next/headers'
-import { getValidToken } from '@/lib/spotify/auth'
+import { SpotifyError, getMe } from '@/lib/spotify/api'
+import { getAccessToken, hasSession } from '@/lib/spotify/session'
 
 type SessionState =
   | { status: 'logged-out' }
@@ -21,56 +21,47 @@ function messageForCallbackError(code: string): string {
 }
 
 async function getSession(): Promise<SessionState> {
-  const cookieStore = await cookies()
-  const accessToken = cookieStore.get('sp_at')?.value
-  const refreshToken = cookieStore.get('sp_rt')?.value
-  const expiresAt = Number(cookieStore.get('sp_exp')?.value ?? 0)
+  // No refresh token → never logged in (or proxy just cleared a dead
+  // session). Not an error, just show the login button.
+  if (!(await hasSession())) return { status: 'logged-out' }
 
-  // No refresh token → never logged in. Not an error, just show the login button.
-  if (!refreshToken) return { status: 'logged-out' }
-
-  const result = await getValidToken(accessToken, refreshToken, expiresAt)
-  if (!result) {
+  // Proxy refreshes before we render; a missing access token here means that
+  // refresh failed on a network blip or a Spotify outage.
+  const accessToken = await getAccessToken()
+  if (!accessToken) {
     return {
       status: 'error',
-      message: 'Your session expired and could not be refreshed. Please log in again.',
+      message: 'Could not refresh your Spotify session. Check your connection and reload.',
     }
   }
 
-  let res: Response
   try {
-    res = await fetch('https://api.spotify.com/v1/me', {
-      headers: { Authorization: `Bearer ${result.accessToken}` },
-    })
-  } catch {
-    return {
-      status: 'error',
-      message: 'Could not reach Spotify. Check your connection and try again.',
-    }
+    const me = await getMe(accessToken)
+    return { status: 'logged-in', displayName: me.displayName ?? me.id }
+  } catch (err) {
+    if (!(err instanceof SpotifyError)) throw err
+    return { status: 'error', message: messageForSpotifyError(err) }
   }
+}
 
-  if (!res.ok) {
-    if (res.status === 403) {
-      return {
-        status: 'error',
-        message:
-          "Spotify returned 403 — this account is likely not added to the app (Development Mode allowlist). Add it in the Spotify dashboard under Settings → User Management.",
-      }
-    }
-    if (res.status === 401) {
-      return {
-        status: 'error',
-        message: 'Spotify rejected the session (401). Please log in again.',
-      }
-    }
-    return {
-      status: 'error',
-      message: `Could not load your Spotify profile (HTTP ${res.status}).`,
-    }
+function messageForSpotifyError(err: SpotifyError): string {
+  switch (err.kind) {
+    case 'network':
+      return 'Could not reach Spotify. Check your connection and try again.'
+    case 'unauthorized':
+      return 'Spotify rejected the session (401). Please log in again.'
+    case 'forbidden':
+      // On /me, the usual cause is a missing allowlist entry, but pass
+      // Spotify's own message along rather than assume.
+      return `Spotify returned 403: ${err.message}. If this account isn't on the app's Development Mode allowlist, add it in the Spotify dashboard under Settings → User Management.`
+    case 'rate_limited':
+      // Dev Mode Retry-After values can run to many hours.
+      return err.retryAfterSec !== undefined && err.retryAfterSec >= 60
+        ? `Spotify is rate-limiting this app. Try again in about ${Math.ceil(err.retryAfterSec / 60)} minutes.`
+        : 'Spotify is rate-limiting this app. Try again in a few seconds.'
+    default:
+      return `Could not load your Spotify profile (HTTP ${err.status}): ${err.message}`
   }
-
-  const me = await res.json()
-  return { status: 'logged-in', displayName: me.display_name ?? me.id ?? 'unknown' }
 }
 
 export default async function Home({
