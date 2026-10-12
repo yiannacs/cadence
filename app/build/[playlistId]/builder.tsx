@@ -69,7 +69,7 @@ export default function Builder({ playlist }: { playlist: Playlist }) {
               )}
             </div>
 
-            <StageBuilder playlist={playlist} tracks={list.tracks} />
+            <StageBuilder playlist={playlist} tracks={list.tracks} onBpmChange={list.setBpm} />
 
             <section className="flex flex-col gap-3">
               <h2 className="text-lg font-semibold text-zinc-50">Tracks</h2>

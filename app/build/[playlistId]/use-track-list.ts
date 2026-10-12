@@ -11,14 +11,18 @@ import {
   trackListReducer,
   type TrackListState,
 } from '@/lib/resolution'
+import type { BpmSource } from '@/lib/bpm/types'
 import type { TrackWithBpm } from '@/lib/types'
 
 /**
  * Loads a playlist's tracks (cached BPMs included), then resolves the rest in
  * chunks, updating state as each chunk returns. `retry` runs another pass over
- * whatever is still unresolved.
+ * whatever is still unresolved. `setBpm` records a BPM the editor set (F6).
  */
-export function useTrackList(playlistId: string): TrackListState & { retry: () => void } {
+export function useTrackList(playlistId: string): TrackListState & {
+  retry: () => void
+  setBpm: (id: string, bpm: number | null, bpmSource: BpmSource | null) => void
+} {
   const [state, dispatch] = useReducer(trackListReducer, initialTrackListState)
   // The pass in progress; aborted on unmount, or when a new one starts.
   const pass = useRef<AbortController | null>(null)
@@ -63,5 +67,10 @@ export function useTrackList(playlistId: string): TrackListState & { retry: () =
 
   const retry = useCallback(() => void resolve(state.tracks), [resolve, state.tracks])
 
-  return { ...state, retry }
+  const setBpm = useCallback(
+    (id: string, bpm: number | null, bpmSource: BpmSource | null) => dispatch({ type: 'set-bpm', id, bpm, bpmSource }),
+    []
+  )
+
+  return { ...state, retry, setBpm }
 }

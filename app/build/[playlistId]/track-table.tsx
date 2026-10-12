@@ -18,7 +18,7 @@ function BpmCell({ track, error, resolving }: { track: TrackWithBpm; error?: str
   return <span className="text-zinc-600">{resolving ? '…' : '—'}</span>
 }
 
-function SourceBadge({ track }: { track: TrackWithBpm }) {
+export function SourceBadge({ track }: { track: TrackWithBpm }) {
   // A miss has a source ('api') but no value; it shows as unsourced.
   if (track.bpm === null || track.bpmSource === null) return <span className="text-zinc-600">—</span>
   return (

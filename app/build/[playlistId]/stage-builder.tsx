@@ -1,6 +1,17 @@
 'use client'
 
-import { useEffect, useMemo, useReducer, useState } from 'react'
+import { useEffect, useMemo, useReducer, useRef, useState } from 'react'
+import type { BpmSource } from '@/lib/bpm/types'
+import {
+  carryKey,
+  locateTrack,
+  moveTrack,
+  postSynthetic,
+  setResultTrackBpm,
+  withTrackBpm,
+  type Container,
+  type SyntheticWrite,
+} from '@/lib/editor'
 import {
   buildKey,
   canBuild,
@@ -16,16 +27,30 @@ import {
   type BuildResult,
 } from '@/lib/stages'
 import type { BuildState, Playlist, TrackWithBpm } from '@/lib/types'
-import StageResults from './stage-results'
+import StageEditor from './stage-editor'
 import StageRow from './stage-row'
 import { formatDuration } from './track-table'
 
 // UX step 3: stages in run order, each a duration and an anchor song, then
-// Build. Mounted only once the tracks have loaded — on the client, so the
-// drafts can be read from localStorage on first render.
-export default function StageBuilder({ playlist, tracks }: { playlist: Playlist; tracks: TrackWithBpm[] }) {
+// Build; the result goes to the editor (UX step 5). Mounted only once the
+// tracks have loaded — on the client, so the drafts can be read from
+// localStorage on first render.
+export default function StageBuilder({
+  playlist,
+  tracks,
+  onBpmChange,
+}: {
+  playlist: Playlist
+  tracks: TrackWithBpm[]
+  // Records a BPM the editor set on the playlist's copy of a track.
+  onBpmChange: (trackId: string, bpm: number | null, bpmSource: BpmSource | null) => void
+}) {
   const [stages, dispatch] = useReducer(stagesReducer, playlist.id, loadStages)
   const [result, setResult] = useState<BuildResult | null>(null)
+  // Why the last tempo guess couldn't be cached.
+  const [saveError, setSaveError] = useState<string | null>(null)
+  // Guesses are cached one at a time, in drop order, so the cache ends up with the last one.
+  const saving = useRef<Promise<void>>(Promise.resolve())
   // The one stage whose anchor picker is open.
   const [picking, setPicking] = useState<string | null>(null)
   const build: BuildState = { playlist, tracks, stages, result }
@@ -43,7 +68,44 @@ export default function StageBuilder({ playlist, tracks }: { playlist: Playlist;
       return
     }
     setPicking(null)
+    setSaveError(null)
     setResult(runBuild(stages, tracks, newSeed()))
+  }
+
+  function onMove(trackId: string, to: Container) {
+    if (!result) return
+    const moved = moveTrack(result, trackId, to)
+    if (moved.result === result) return
+    const write = moved.synthetic
+    if (!write) {
+      setResult(moved.result)
+      return
+    }
+    // The guess becomes the track's BPM everywhere at once, so the badge flips
+    // to synthetic before the server answers and the next Build already uses it.
+    const after = withTrackBpm(tracks, write.trackId, write.bpm, 'synthetic')
+    setResult({ ...moved.result, key: carryKey(moved.result.key, stages, tracks, after) })
+    onBpmChange(write.trackId, write.bpm, 'synthetic')
+    saveGuess(write, locateTrack(result, trackId)?.track.name ?? 'this song')
+  }
+
+  function saveGuess(write: SyntheticWrite, name: string) {
+    saving.current = saving.current.then(async () => {
+      try {
+        const stored = await postSynthetic(write)
+        setSaveError(null)
+        if (stored.bpmSource !== 'synthetic' || stored.bpm !== write.bpm) {
+          // The cache already held a real BPM, which outranks the guess: use it here too.
+          setResult((r) => r && setResultTrackBpm(r, write.trackId, stored.bpm, stored.bpmSource))
+          onBpmChange(write.trackId, stored.bpm, stored.bpmSource)
+        }
+      } catch (err) {
+        const reason = (err as Error).message.replace(/\.?$/, '.')
+        setSaveError(
+          `Couldn't save the tempo for “${name}”: ${reason} It's used in this build, but won't be remembered next time.`
+        )
+      }
+    })
   }
 
   return (
@@ -110,7 +172,7 @@ export default function StageBuilder({ playlist, tracks }: { playlist: Playlist;
         </div>
       </section>
 
-      {result && <StageResults result={result} stale={stale} />}
+      {result && <StageEditor result={result} stale={stale} error={saveError} onMove={onMove} />}
     </>
   )
 }
