@@ -25,6 +25,7 @@ UX step 3: the user defines `n` stages, each with a duration and an anchor song 
 
 - Totals: show the overall run length (sum of durations) so the user can sanity-check against their planned run.
 - Persist stage specs in `localStorage` keyed by playlist ID so a refresh doesn't lose them (wrap in try/catch).
+- State logic lives in `lib/stages.ts` (pure, unit-tested): the `StageDraft` reducer, the wording for each of F4's problem codes, the anchor picker's rules, and `runBuild`, which merges then fills and returns a `BuildResult` — `{ seed, stages, unplaced, labels, merged, key, edited }`. `key` identifies the build's inputs, so the page can say when the stages changed since; `edited` is what F6 sets so a rebuild asks first.
 
 ## Acceptance
 

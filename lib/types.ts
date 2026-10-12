@@ -1,4 +1,5 @@
 import type { BpmSource } from './bpm/types'
+import type { BuildResult, StageDraft } from './stages'
 
 // Kept free of server-only imports: client components import this file.
 
@@ -26,8 +27,11 @@ export interface Playlist {
 }
 
 // Run state for one build, held on the client. F3 fills `tracks`; the stage
-// builder and editor add to it.
+// builder (F5) adds the stage drafts and the filled result, which the editor
+// (F6) then changes.
 export interface BuildState {
   playlist: Playlist
   tracks: TrackWithBpm[]
+  stages: StageDraft[]
+  result: BuildResult | null // null until the first Build
 }

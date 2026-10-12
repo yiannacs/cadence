@@ -2,16 +2,16 @@
 
 import Link from 'next/link'
 import { summarize } from '@/lib/resolution'
-import type { BuildState, Playlist } from '@/lib/types'
+import type { Playlist } from '@/lib/types'
+import StageBuilder from './stage-builder'
 import TrackTable from './track-table'
 import { useTrackList } from './use-track-list'
 
-// Host for the whole build: the source playlist and its tracks now, the stage
-// builder and editor later. Run state lives here, on the client.
+// Host for the whole build: the source playlist and its tracks, then the stage
+// builder on top of them. Run state lives here and in StageBuilder, on the client.
 export default function Builder({ playlist }: { playlist: Playlist }) {
   const list = useTrackList(playlist.id)
-  const build: BuildState = { playlist, tracks: list.tracks }
-  const summary = summarize(build.tracks)
+  const summary = summarize(list.tracks)
   const resolving = list.phase === 'resolving'
 
   return (
@@ -69,7 +69,12 @@ export default function Builder({ playlist }: { playlist: Playlist }) {
               )}
             </div>
 
-            <TrackTable tracks={build.tracks} failed={list.failed} resolving={resolving} />
+            <StageBuilder playlist={playlist} tracks={list.tracks} />
+
+            <section className="flex flex-col gap-3">
+              <h2 className="text-lg font-semibold text-zinc-50">Tracks</h2>
+              <TrackTable tracks={list.tracks} failed={list.failed} resolving={resolving} />
+            </section>
           </>
         )}
 

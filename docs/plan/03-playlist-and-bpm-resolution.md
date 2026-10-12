@@ -25,7 +25,7 @@ UX step 2 and the BPM half of step 4: the user picks one of their playlists, the
 ## Notes
 
 - Duplicate tracks within the source playlist: dedupe by track ID on load.
-- This page becomes the host for the stage builder (F5) and editor (F6) — design the client state container now: `{ playlist, tracks: TrackWithBpm[] }`.
+- This page becomes the host for the stage builder (F5) and editor (F6) — design the client state container now: `BuildState { playlist, tracks: TrackWithBpm[] }` in `lib/types.ts`, which F5 extends with `stages` and `result`.
 
 ## Acceptance
 
