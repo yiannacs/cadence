@@ -27,12 +27,13 @@ import {
   type BuildResult,
 } from '@/lib/stages'
 import type { BuildState, Playlist, TrackWithBpm } from '@/lib/types'
+import ExportPanel from './export-panel'
 import StageEditor from './stage-editor'
 import StageRow from './stage-row'
 import { formatDuration } from './track-table'
 
 // UX step 3: stages in run order, each a duration and an anchor song, then
-// Build; the result goes to the editor (UX step 5). Mounted only once the
+// Build; the result goes to the editor (UX step 5) and on to export (UX step 6). Mounted only once the
 // tracks have loaded — on the client, so the drafts can be read from
 // localStorage on first render.
 export default function StageBuilder({
@@ -173,6 +174,7 @@ export default function StageBuilder({
       </section>
 
       {result && <StageEditor result={result} stale={stale} error={saveError} onMove={onMove} />}
+      {result && <ExportPanel playlist={playlist} result={result} />}
     </>
   )
 }
