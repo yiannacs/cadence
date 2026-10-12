@@ -1,5 +1,5 @@
 import { fileURLToPath } from 'node:url'
-import { defineConfig } from 'vitest/config'
+import { configDefaults, defineConfig } from 'vitest/config'
 
 export default defineConfig({
   resolve: {
@@ -11,5 +11,7 @@ export default defineConfig({
   test: {
     environment: 'node',
     passWithNoTests: true,
+    // Agent worktrees hold full copies of the repo.
+    exclude: [...configDefaults.exclude, '.claude/**'],
   },
 })
