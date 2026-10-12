@@ -16,3 +16,18 @@ export interface TrackWithBpm extends Track {
   bpm: number | null
   bpmSource: BpmSource | null
 }
+
+// The source playlist as the client sees it.
+export interface Playlist {
+  id: string
+  name: string
+  trackCount: number | null
+  imageUrl: string | null
+}
+
+// Run state for one build, held on the client. F3 fills `tracks`; the stage
+// builder and editor add to it.
+export interface BuildState {
+  playlist: Playlist
+  tracks: TrackWithBpm[]
+}
