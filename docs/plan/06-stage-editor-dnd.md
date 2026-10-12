@@ -28,6 +28,7 @@ UX step 5: show the staged result as columns/rows per stage plus an "Unplaced" b
 
 ## Notes
 
+- Works on F5's `BuildResult` (`lib/stages.ts`) in place of F5's read-only result view, and sets `edited: true` on the first move so rebuilding asks before discarding it.
 - Correcting wrong-octave API BPMs (e.g. half-time) is not in the MVP — see "Future work" in [PLAN.md](PLAN.md).
 
 ## Acceptance
