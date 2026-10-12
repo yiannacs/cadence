@@ -1,4 +1,6 @@
+import Link from 'next/link'
 import { SpotifyError, getMe } from '@/lib/spotify/api'
+import { REFRESH_FAILED_MESSAGE, messageForSpotifyError } from '@/lib/spotify/messages'
 import { getAccessToken, hasSession } from '@/lib/spotify/session'
 
 type SessionState =
@@ -29,10 +31,7 @@ async function getSession(): Promise<SessionState> {
   // refresh failed on a network blip or a Spotify outage.
   const accessToken = await getAccessToken()
   if (!accessToken) {
-    return {
-      status: 'error',
-      message: 'Could not refresh your Spotify session. Check your connection and reload.',
-    }
+    return { status: 'error', message: REFRESH_FAILED_MESSAGE }
   }
 
   try {
@@ -41,26 +40,6 @@ async function getSession(): Promise<SessionState> {
   } catch (err) {
     if (!(err instanceof SpotifyError)) throw err
     return { status: 'error', message: messageForSpotifyError(err) }
-  }
-}
-
-function messageForSpotifyError(err: SpotifyError): string {
-  switch (err.kind) {
-    case 'network':
-      return 'Could not reach Spotify. Check your connection and try again.'
-    case 'unauthorized':
-      return 'Spotify rejected the session (401). Please log in again.'
-    case 'forbidden':
-      // On /me, the usual cause is a missing allowlist entry, but pass
-      // Spotify's own message along rather than assume.
-      return `Spotify returned 403: ${err.message}. If this account isn't on the app's Development Mode allowlist, add it in the Spotify dashboard under Settings → User Management.`
-    case 'rate_limited':
-      // Dev Mode Retry-After values can run to many hours.
-      return err.retryAfterSec !== undefined && err.retryAfterSec >= 60
-        ? `Spotify is rate-limiting this app. Try again in about ${Math.ceil(err.retryAfterSec / 60)} minutes.`
-        : 'Spotify is rate-limiting this app. Try again in a few seconds.'
-    default:
-      return `Could not load your Spotify profile (HTTP ${err.status}): ${err.message}`
   }
 }
 
@@ -97,6 +76,12 @@ export default async function Home({
               Logged in as{' '}
               <span className="text-zinc-50 font-medium">{session.displayName}</span>
             </p>
+            <Link
+              href="/build"
+              className="rounded-full bg-[#1DB954] px-8 py-3 text-sm font-semibold text-black transition-opacity hover:opacity-90"
+            >
+              Pick a playlist
+            </Link>
             <a
               href="/api/logout"
               className="rounded-full border border-zinc-700 px-6 py-2 text-sm text-zinc-300 transition-colors hover:border-zinc-500 hover:text-zinc-50"
