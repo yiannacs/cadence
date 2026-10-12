@@ -118,7 +118,7 @@ async function readJson(res: Response): Promise<unknown> {
   }
 }
 
-async function call<T>(url: string, init: RequestInit, what: string): Promise<T> {
+export async function call<T>(url: string, init: RequestInit, what: string): Promise<T> {
   let res: Response
   try {
     res = await fetch(url, init)
@@ -170,6 +170,8 @@ export type TrackListAction =
   | { type: 'resolve-start'; total: number }
   | { type: 'chunk'; results: ResolveResult[] }
   | { type: 'resolve-end'; stop: string | null }
+  // One track's BPM changed outside a lookup: a synthetic guess from the editor (F6).
+  | { type: 'set-bpm'; id: string; bpm: number | null; bpmSource: BpmSource | null }
 
 export const initialTrackListState: TrackListState = {
   phase: 'loading',
@@ -204,6 +206,13 @@ export function trackListReducer(state: TrackListState, action: TrackListAction)
     }
     case 'resolve-end':
       return { ...state, phase: 'idle', error: action.stop }
+    case 'set-bpm':
+      return {
+        ...state,
+        tracks: state.tracks.map((t) =>
+          t.id === action.id ? { ...t, bpm: action.bpm, bpmSource: action.bpmSource } : t
+        ),
+      }
   }
 }
 

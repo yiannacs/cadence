@@ -127,6 +127,14 @@ describe('trackListReducer', () => {
     expect(loaded.tracks.map((t) => t.id)).toEqual(['a', 'b', 'c'])
   })
 
+  it('sets one track’s BPM without touching progress', () => {
+    const s = trackListReducer(loaded, { type: 'set-bpm', id: 'b', bpm: 172, bpmSource: 'synthetic' })
+    expect(s.tracks[1]).toMatchObject({ id: 'b', bpm: 172, bpmSource: 'synthetic' })
+    expect(s.tracks[0]).toBe(loaded.tracks[0])
+    expect(s.progress).toEqual(loaded.progress)
+    expect(loaded.tracks[1].bpm).toBeNull()
+  })
+
   it('merges resolved results and records failures', () => {
     let s = trackListReducer(loaded, { type: 'resolve-start', total: 2 })
     expect(s.phase).toBe('resolving')
