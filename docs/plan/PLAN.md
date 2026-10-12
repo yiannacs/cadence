@@ -66,6 +66,19 @@ F0 is one small commit on `main`. After it, F1, F2 and F4 are independent and ca
   - ×2 / ÷2 buttons on each track row in the editor, saved as `manual` (the user doesn't love this).
   - Octave-aware distance in the fill: treat `bpm`, `2·bpm` and `bpm/2` as candidates.
   - A manual BPM entry field (`source: 'manual'` is already supported by the cache).
+- **More BPM sources.** GetSongBPM's coverage is poor. Spotify itself is no option: `audio-features`/`audio-analysis` and `preview_url` are gone for new apps, Web Playback SDK audio is DRM-protected (can't reach Web Audio), and its terms forbid analysing content. Proposed resolver chain, first hit wins:
+  1. **Deezer `bpm`** — `GET https://api.deezer.com/track/isrc:{ISRC}`, no auth, ISRC from Spotify's `external_ids.isrc`. Often `0` (= miss). The same response carries `preview`, kept for step 3.
+  2. **ReccoBeats** — free audio-features API keyed by Spotify track ID.
+  3. **Deezer preview + essentia.js** — 30s MP3, analysed with `RhythmExtractor2013`. Preview URLs are signed and expire, so fetch at analysis time; Deezer sends no CORS headers, so server-side.
+  4. **iTunes preview + essentia.js** — `itunes.apple.com/lookup?isrc=…` (or `/search`), `previewUrl` is a 30s AAC.
+  5. **GetSongBPM** — last resort.
+
+  Notes:
+  - Unverified until implementation: field names, Deezer `bpm` accuracy, ReccoBeats coverage, and whether Spotify Dev Mode still returns `external_ids`. Benchmark the sources on 30–50 tracks with known BPM before fixing the order; if Deezer and ReccoBeats disagree beyond an octave, essentia can break the tie.
+  - Every source is subject to the wrong-octave problem above: fold all results into one canonical range and store the raw value alongside.
+  - Record which provider answered (e.g. `provider` next to `source: 'api'`) so one bad provider's entries can be re-resolved.
+  - essentia.js is **AGPL-3.0**; fine for this personal tool, revisit if that changes.
+  - Steps 3–4 cost ~1–3s and ~500KB per track: cap concurrent analyses in the bulk-resolve route.
 
 ## Definition of done (MVP)
 
