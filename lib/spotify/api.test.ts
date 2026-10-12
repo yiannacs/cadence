@@ -5,6 +5,7 @@ import {
   createPlaylist,
   getMe,
   getMyPlaylists,
+  getPlaylist,
   getPlaylistTracks,
   spotifyFetch,
 } from './api'
@@ -192,6 +193,64 @@ describe('getMyPlaylists', () => {
     expect(fetchMock.mock.calls.map((c) => String(c[0]))).toContain(
       'https://api.spotify.com/v1/me/playlists?limit=50'
     )
+  })
+})
+
+describe('getPlaylist', () => {
+  it('fetches one playlist and treats a present `items` as readable', async () => {
+    fetchMock.mockResolvedValueOnce(
+      json({
+        id: 'p1',
+        name: 'Shared',
+        // Collaborative: someone else owns it, but Spotify includes `items`.
+        owner: { id: 'someone' },
+        images: [{ url: 'https://img/1' }],
+        items: { total: 42 },
+      })
+    )
+    await expect(getPlaylist('tok', 'p1')).resolves.toEqual({
+      id: 'p1',
+      name: 'Shared',
+      readable: true,
+      trackCount: 42,
+      imageUrl: 'https://img/1',
+    })
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(calledUrl(0)).toBe('https://api.spotify.com/v1/playlists/p1')
+  })
+
+  it('marks a playlist without `items` unreadable', async () => {
+    fetchMock.mockResolvedValueOnce(
+      json({ id: 'p2', name: 'Theirs', owner: { id: 'someone' }, images: [] })
+    )
+    await expect(getPlaylist('tok', 'p2')).resolves.toMatchObject({
+      readable: false,
+      trackCount: null,
+    })
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('falls back to an ownership check for old-shape responses', async () => {
+    fetchMock.mockImplementation(async (input) =>
+      String(input).endsWith('/me')
+        ? json({ id: 'me', display_name: 'Me' })
+        : json({ id: 'p3', name: 'Old', owner: { id: 'me' }, images: null, tracks: { total: 7 } })
+    )
+    await expect(getPlaylist('tok', 'p3')).resolves.toMatchObject({ readable: true, trackCount: 7 })
+
+    fetchMock.mockImplementation(async (input) =>
+      String(input).endsWith('/me')
+        ? json({ id: 'me', display_name: 'Me' })
+        : json({ id: 'p4', name: 'Old', owner: { id: 'x' }, images: null, tracks: { total: 7 } })
+    )
+    await expect(getPlaylist('tok', 'p4')).resolves.toMatchObject({ readable: false })
+  })
+
+  it('passes a 404 through as SpotifyError', async () => {
+    fetchMock.mockResolvedValueOnce(spotifyErrorBody(404, 'Resource not found'))
+    const err = await caught(getPlaylist('tok', 'nope'))
+    expect(err).toBeInstanceOf(SpotifyError)
+    expect(err.status).toBe(404)
   })
 })
 

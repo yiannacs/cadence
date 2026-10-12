@@ -62,6 +62,7 @@ User-facing wording stays in the UI layer; pass Spotify's message through rather
 - `getMyPlaylists()` → `GET /me/playlists?limit=50`, all pages →
   `{ id, name, ownerId, isOwn: owner.id === me.id, trackCount: items?.total ?? tracks?.total ?? null, imageUrl: images[0]?.url ?? null }`.
   Only `isOwn` playlists are readable; F3 disables the rest. (Don't trust the `collaborative` flag — it doesn't prove the user is a collaborator.)
+- `getPlaylist(playlistId)` → `GET /playlists/{id}` → `{ id, name, readable, trackCount, imageUrl }`, one request. `readable` is `items` being present (covers collaborative playlists); an old-shape response with only `tracks` falls back to `owner.id === me.id`. Used by the `/build/[playlistId]` page; 404 (and 400 for a malformed ID) → not found.
 - `getPlaylistTracks(playlistId)` → `GET /playlists/{id}/items?limit=50`, all pages, mapped to `Track`. Read `entry.item ?? entry.track`; keep only non-null, `!is_local`, `uri` starting `spotify:track:` (drops episodes and local files). A 403 → `kind: 'playlist_not_owned'`.
 - `createPlaylist({ name, isPublic = false, description })` → `POST /me/playlists`, **always** sending `public` → `{ id, url: external_urls.spotify }`.
 - `addTracks(playlistId, uris)` → `POST /playlists/{id}/items` with JSON `{ uris }`, ≤100 per call (chunking is F7's job).

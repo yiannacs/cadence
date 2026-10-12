@@ -220,6 +220,33 @@ export async function getMyPlaylists(token: string): Promise<PlaylistSummary[]> 
     .map((p) => toPlaylistSummary(p, me.id))
 }
 
+export interface PlaylistDetail {
+  id: string
+  name: string
+  // Whether the user can read the contents: their own playlists and ones
+  // they collaborate on.
+  readable: boolean
+  trackCount: number | null
+  // Spotify's image URLs expire within about a day; don't persist them.
+  imageUrl: string | null
+}
+
+/** One playlist's metadata. A 404 comes through as SpotifyError kind 'http'. */
+export async function getPlaylist(token: string, playlistId: string): Promise<PlaylistDetail> {
+  const raw = await spotifyFetch<RawPlaylist>(token, `/playlists/${encodeURIComponent(playlistId)}`)
+  // Spotify leaves `items` off playlists the user can't read. An old-shape
+  // response (`tracks` only) doesn't say, so fall back to an ownership check.
+  const readable =
+    raw.items != null || (raw.tracks != null && raw.owner.id === (await getMe(token)).id)
+  return {
+    id: raw.id,
+    name: raw.name,
+    readable,
+    trackCount: raw.items?.total ?? raw.tracks?.total ?? null,
+    imageUrl: raw.images?.[0]?.url ?? null,
+  }
+}
+
 /**
  * Maps one playlist entry to a Track, or null for anything that can't go in
  * an exported playlist: removed tracks, local files, podcast episodes.

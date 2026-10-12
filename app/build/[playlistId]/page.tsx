@@ -1,7 +1,5 @@
 import Link from 'next/link'
-import { notFound } from 'next/navigation'
-import type { Playlist } from '@/lib/types'
-import { loadPlaylists } from '../playlists'
+import { loadPlaylist } from '../playlists'
 import Builder from './builder'
 
 function Notice({ children }: { children: React.ReactNode }) {
@@ -21,22 +19,14 @@ function Notice({ children }: { children: React.ReactNode }) {
 
 export default async function BuildPage({ params }: PageProps<'/build/[playlistId]'>) {
   const { playlistId } = await params
-  const result = await loadPlaylists()
+  const result = await loadPlaylist(playlistId)
   if (!result.ok) return <Notice>{result.message}</Notice>
 
-  const summary = result.playlists.find((p) => p.id === playlistId)
-  if (!summary) notFound()
-  if (!summary.isOwn) {
+  const { readable, ...playlist } = result.playlist
+  if (!readable) {
     return <Notice>Spotify only lets this app read playlists you own.</Notice>
   }
 
-  // Just the fields the client uses.
-  const playlist: Playlist = {
-    id: summary.id,
-    name: summary.name,
-    trackCount: summary.trackCount,
-    imageUrl: summary.imageUrl,
-  }
   // Keyed so switching playlists starts from a fresh track list.
   return <Builder key={playlist.id} playlist={playlist} />
 }
