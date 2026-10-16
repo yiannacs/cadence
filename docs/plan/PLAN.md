@@ -2,16 +2,25 @@
 
 Source of truth for *what* to build: [`../CADENCE.md`](../CADENCE.md). This file covers *how*: the order of the work and links to one spec per feature.
 
-## Current state (as of `e6a24d0`)
+## Current state (as of `42edd20`)
 
-| Area | Status | Where |
-|---|---|---|
-| Spotify OAuth (login / callback / logout, cookie tokens, refresh helper) | **Done, but** refreshed tokens are never saved back to cookies; fixed in F1 | `app/api/{login,callback,logout}`, `lib/spotify/auth.ts` |
-| BPM cache storage (JSON file, provenance, miss TTL) | **Done, but buggy** — precedence rule blocks synthetic-over-miss; fixed in F2 | `lib/bpm/cache.ts`, `lib/bpm/types.ts` |
-| GetSongBPM client + `getBpm()` resolver | Not started | → [F2](02-getsongbpm-resolver.md) |
-| Everything after build-order step 2 | Not started | → F3–F7 |
+The MVP is implemented: F0–F7 are all done, and tests, type-check, lint and `next build` pass.
 
-Build-order step 1 is complete. Step 2 is half done: storage exists, but the network half (`getBpm(trackId, artist, title)`) does not.
+| Feature | Where |
+|---|---|
+| F0 Foundation | `vitest.config.mts`, `test/stubs/`, `lib/types.ts` |
+| F1 Spotify session + client | `proxy.ts`, `lib/spotify/{session,auth,api,messages}.ts`, `app/api/{login,callback,logout}` |
+| F2 GetSongBPM + `getBpm` | `lib/bpm/{cache,getsongbpm,normalize,index,batch}.ts` |
+| F3 Picker + bulk resolve | `app/build/page.tsx`, `app/api/playlists/[id]/tracks`, `app/api/bpm/resolve`, `lib/resolution.ts` |
+| F4 Fill algorithm | `lib/fill.ts` |
+| F5 Stage builder | `lib/stages.ts`, `app/build/[playlistId]/{stage-builder,stage-row,anchor-picker}.tsx` |
+| F6 Drag-and-drop editor | `lib/editor.ts`, `app/api/bpm/synthetic`, `app/build/[playlistId]/stage-editor.tsx` |
+| F7 Export | `lib/export.ts`, `app/api/export`, `app/build/[playlistId]/export-panel.tsx` |
+
+Not done:
+- F1's optional `market=from_token` / `is_playable` filtering.
+- Manual checks against live Spotify: the F1 refresh curl test, and the F7 >100-track export order check.
+- Everything under [Future work](#future-work).
 
 ## Features
 
