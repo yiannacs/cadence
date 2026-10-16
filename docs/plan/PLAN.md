@@ -4,7 +4,7 @@ Source of truth for *what* to build: [`../CADENCE.md`](../CADENCE.md). This file
 
 ## Current state (as of `42edd20`)
 
-The MVP is implemented: F0–F7 are all done, and tests, type-check, lint and `next build` pass.
+The MVP is implemented: F0–F7 are all done, and tests, type-check, lint and `next build` pass. The next round of work is the UX rework in [`ux/PLAN.md`](ux/PLAN.md).
 
 | Feature | Where |
 |---|---|
