@@ -14,6 +14,9 @@ export interface StageSpec {
   id: string
   durationMs: number
   anchorTrackId: string
+  // Co-anchors: always included in the stage, whatever their BPM. Only the
+  // anchor sets the tempo. Absent = none.
+  pinnedTrackIds?: string[]
 }
 
 export type Direction = 'asc' | 'desc' | 'peak' | 'valley'
@@ -21,6 +24,7 @@ export type Direction = 'asc' | 'desc' | 'peak' | 'valley'
 export interface FilledStage<T extends FillTrack> {
   id: string
   anchorTrackId: string
+  pinnedTrackIds: string[] // co-anchors, in run order
   targetMs: number
   centerBpm: number // = anchor BPM
   rangeBpm: [number, number] // (lower, upper] — may be ±Infinity
@@ -35,7 +39,9 @@ export type StageProblemReason =
   | 'invalid-duration'
   | 'anchor-missing'
   | 'anchor-no-bpm'
-  | 'duplicate-anchor'
+  | 'pinned-missing'
+  | 'pinned-no-bpm'
+  | 'duplicate-anchor' // also a track repeated across anchors and pinned lists
   | 'equal-contiguous-anchors'
   | 'duplicate-stage-id'
   | 'duplicate-pool-id'
@@ -80,6 +86,10 @@ function indexById<T extends FillTrack>(pool: T[]): Map<string, T> {
   return byId
 }
 
+function pinnedOf(stage: StageSpec): string[] {
+  return stage.pinnedTrackIds ?? []
+}
+
 export function validateStages(stages: StageSpec[], pool: FillTrack[]): StageProblem[] {
   const problems: StageProblem[] = []
   const byId = indexById(pool)
@@ -114,10 +124,21 @@ export function validateStages(stages: StageSpec[], pool: FillTrack[]): StagePro
       problems.push({ stageId: stage.id, reason: 'anchor-no-bpm', blocking: true })
     }
 
-    if (seenAnchors.has(stage.anchorTrackId)) {
-      problems.push({ stageId: stage.id, reason: 'duplicate-anchor', blocking: true })
+    const pinned = pinnedOf(stage).map((id) => byId.get(id))
+    if (pinned.some((t) => !t)) {
+      problems.push({ stageId: stage.id, reason: 'pinned-missing', blocking: true })
     }
-    seenAnchors.add(stage.anchorTrackId)
+    if (pinned.some((t) => t && !hasBpm(t))) {
+      problems.push({ stageId: stage.id, reason: 'pinned-no-bpm', blocking: true })
+    }
+
+    // A track may appear once across every anchor and pinned list; reported once per stage.
+    let duplicate = false
+    for (const id of [stage.anchorTrackId, ...pinnedOf(stage)]) {
+      if (seenAnchors.has(id)) duplicate = true
+      seenAnchors.add(id)
+    }
+    if (duplicate) problems.push({ stageId: stage.id, reason: 'duplicate-anchor', blocking: true })
 
     // Flagged on the later stage of the pair — that's the one that gets merged away.
     if (i > 0) {
@@ -133,8 +154,10 @@ export function validateStages(stages: StageSpec[], pool: FillTrack[]): StagePro
 
 /**
  * Collapses each run of contiguous stages with equal anchor BPMs into one stage:
- * the first stage's ID and anchor, durations summed. `merged` lists the stage
- * IDs of each run that was collapsed, so F5 can tell the user.
+ * the first stage's ID and anchor, durations summed. The later stages' anchors
+ * (and their own co-anchors) become the merged stage's co-anchors, in run
+ * order. `merged` lists the stage IDs of each run that was collapsed, so F5
+ * can tell the user.
  */
 export function mergeEqualContiguous(
   stages: StageSpec[],
@@ -154,6 +177,7 @@ export function mergeEqualContiguous(
     if (last && bpm !== null && bpm === bpmOf(last)) {
       // `last` is always a copy we made below, so this doesn't touch the input.
       last.durationMs += stage.durationMs
+      last.pinnedTrackIds = [...pinnedOf(last), stage.anchorTrackId, ...pinnedOf(stage)]
       runs[runs.length - 1].push(stage.id)
     } else {
       out.push({ ...stage })
@@ -250,7 +274,10 @@ function orderByDirection<T extends FillTrack>(tracks: T[], direction: Direction
 }
 
 function buildStage<T extends FillTrack>(
-  base: Pick<FilledStage<T>, 'id' | 'anchorTrackId' | 'targetMs' | 'centerBpm' | 'rangeBpm' | 'direction'>,
+  base: Pick<
+    FilledStage<T>,
+    'id' | 'anchorTrackId' | 'pinnedTrackIds' | 'targetMs' | 'centerBpm' | 'rangeBpm' | 'direction'
+  >,
   tracks: T[]
 ): FilledStage<T> {
   let spreadBpm = MIN_SPREAD_BPM
@@ -263,6 +290,7 @@ function buildStage<T extends FillTrack>(
   }
   return {
     ...base,
+    pinnedTrackIds: [...base.pinnedTrackIds],
     rangeBpm: [base.rangeBpm[0], base.rangeBpm[1]],
     spreadBpm,
     tracks: orderByDirection(tracks, base.direction, base.centerBpm),
@@ -292,13 +320,14 @@ export function fillStages<T extends FillTrack>(
   }
 
   const byId = indexById(pool)
-  // Validation guarantees every anchor exists and has a BPM.
+  // Validation guarantees every anchor and pinned track exists and has a BPM.
   const anchors = stages.map((s) => byId.get(s.anchorTrackId) as T & { bpm: number })
-  const anchorIds = new Set(stages.map((s) => s.anchorTrackId))
+  const pinned = stages.map((s) => pinnedOf(s).map((id) => byId.get(id) as T & { bpm: number }))
+  const anchorIds = new Set(stages.flatMap((s) => [s.anchorTrackId, ...pinnedOf(s)]))
   const centers = anchors.map((a) => a.bpm)
   const ranges = stages.map((_, i) => stageRange(centers, i))
 
-  // Allocate every non-anchor track with a BPM to one stage whose range holds it.
+  // Allocate every non-anchor, non-pinned track with a BPM to one stage whose range holds it.
   const allocated: (T & { bpm: number })[][] = stages.map(() => [])
   const overlapEligible = new Map<string, number[]>()
   for (const t of pool) {
@@ -309,14 +338,14 @@ export function fillStages<T extends FillTrack>(
     if (eligible.length > 1) overlapEligible.set(t.id, eligible)
   }
 
-  // Greedy fill: anchor first, then nearest-to-anchor until the target is met.
-  // Overshoot is at most the last track added.
+  // Greedy fill: anchor and pinned tracks first, then nearest-to-anchor until
+  // the target is met. Overshoot is at most the last track added.
   const chosen: T[][] = []
   const totals: number[] = []
   const placed = new Set<string>()
   stages.forEach((stage, i) => {
-    const picked: T[] = [anchors[i]]
-    let total = anchors[i].durationMs
+    const picked: T[] = [anchors[i], ...pinned[i]]
+    let total = picked.reduce((sum, t) => sum + t.durationMs, 0)
     for (const t of byDistance(allocated[i], centers[i])) {
       if (total >= stage.durationMs) break
       picked.push(t)
@@ -350,6 +379,7 @@ export function fillStages<T extends FillTrack>(
         {
           id: stage.id,
           anchorTrackId: stage.anchorTrackId,
+          pinnedTrackIds: pinnedOf(stage),
           targetMs: stage.durationMs,
           centerBpm: centers[i],
           rangeBpm: ranges[i],
@@ -375,10 +405,15 @@ export function recomputeStage<T extends FillTrack>(stage: FilledStage<T>, track
   if (!anchor) {
     throw new Error(`recomputeStage: anchor ${stage.anchorTrackId} missing from stage ${stage.id}`)
   }
+  const missing = stage.pinnedTrackIds.find((id) => !tracks.some((t) => t.id === id))
+  if (missing !== undefined) {
+    throw new Error(`recomputeStage: pinned track ${missing} missing from stage ${stage.id}`)
+  }
   return buildStage(
     {
       id: stage.id,
       anchorTrackId: stage.anchorTrackId,
+      pinnedTrackIds: stage.pinnedTrackIds,
       targetMs: stage.targetMs,
       centerBpm: hasBpm(anchor) ? anchor.bpm : stage.centerBpm,
       rangeBpm: stage.rangeBpm,

@@ -28,7 +28,7 @@ export function locateTrack(
 export type MoveRefusal =
   | 'not-found' // no such track, or no such stage
   | 'same-container' // dropped where it already was
-  | 'anchor' // an anchor never leaves its own stage
+  | 'anchor' // an anchor or co-anchor never leaves its own stage
 
 /** Why moving `trackId` to `to` would do nothing; null when the move is allowed. */
 export function checkMove(result: BuildResult, trackId: string, to: Container): MoveRefusal | null {
@@ -36,7 +36,7 @@ export function checkMove(result: BuildResult, trackId: string, to: Container): 
   if (!at) return 'not-found'
   if (to !== null && !result.stages.some((s) => s.id === to)) return 'not-found'
   if (at.container === to) return 'same-container'
-  if (result.stages.some((s) => s.anchorTrackId === trackId)) return 'anchor'
+  if (result.stages.some((s) => s.anchorTrackId === trackId || s.pinnedTrackIds.includes(trackId))) return 'anchor'
   return null
 }
 

@@ -90,6 +90,15 @@ describe('locateTrack / checkMove', () => {
     expect(checkMove(result, 'a172', null)).toBe('anchor')
   })
 
+  it('keeps a co-anchor in its own stage', () => {
+    // 'guess' (150) right after warmup's a150 merges in as a co-anchor.
+    const merged = runBuild([drafts[0], draft('again', 'guess'), ...drafts.slice(1)], tracks, 1)
+    expect(stage(merged, 'warmup').pinnedTrackIds).toEqual(['guess'])
+    expect(checkMove(merged, 'guess', 'build')).toBe('anchor')
+    expect(checkMove(merged, 'guess', null)).toBe('anchor')
+    expect(moveTrack(merged, 'guess', null).result).toBe(merged)
+  })
+
   it('refuses unknown tracks and stages', () => {
     expect(checkMove(result, 'nope', 'peak')).toBe('not-found')
     expect(checkMove(result, 'miss', 'nope')).toBe('not-found')

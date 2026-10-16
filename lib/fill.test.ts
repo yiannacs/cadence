@@ -18,8 +18,8 @@ function track(id: string, bpm: number | null, durationMs = 3 * MIN): FillTrack 
   return { id, bpm, durationMs }
 }
 
-function stage(id: string, anchorTrackId: string, durationMs = 10 * MIN): StageSpec {
-  return { id, anchorTrackId, durationMs }
+function stage(id: string, anchorTrackId: string, durationMs = 10 * MIN, pinnedTrackIds?: string[]): StageSpec {
+  return pinnedTrackIds ? { id, anchorTrackId, durationMs, pinnedTrackIds } : { id, anchorTrackId, durationMs }
 }
 
 function deepFreeze<T>(value: T): T {
@@ -75,11 +75,15 @@ function assertInvariants(stages: StageSpec[], pool: FillTrack[], out: Output) {
     const anchor = pool.find((t) => t.id === stages[i].anchorTrackId)!
     expect(s.anchorTrackId).toBe(anchor.id)
     expect(s.tracks).toContain(anchor)
+    const pinned = stages[i].pinnedTrackIds ?? []
+    expect(s.pinnedTrackIds).toEqual(pinned)
+    for (const id of pinned) expect(ids(s)).toContain(id)
+    const fixed = new Set([anchor.id, ...pinned])
     expect(s.centerBpm).toBe(anchor.bpm)
     expect(s.targetMs).toBe(stages[i].durationMs)
 
     for (const t of s.tracks) {
-      if (t.id !== anchor.id) expect(inRange(t.bpm!, s.rangeBpm)).toBe(true)
+      if (!fixed.has(t.id)) expect(inRange(t.bpm!, s.rangeBpm)).toBe(true)
     }
 
     expect(matchesDirection(s)).toBe(true)
@@ -88,8 +92,8 @@ function assertInvariants(stages: StageSpec[], pool: FillTrack[], out: Output) {
     expect(s.totalMs).toBe(total)
     expect(s.shortfallMs).toBe(Math.max(0, s.targetMs - total))
     // Overshoot bound: whichever track went in last, the stage was still short
-    // before it — so removing the longest non-anchor track must leave it short.
-    const others = s.tracks.filter((t) => t.id !== anchor.id)
+    // before it — so removing the longest non-anchor, non-pinned track must leave it short.
+    const others = s.tracks.filter((t) => !fixed.has(t.id))
     if (others.length > 0) {
       expect(total - Math.max(...others.map((t) => t.durationMs))).toBeLessThan(s.targetMs)
     }
@@ -406,6 +410,45 @@ describe('fillStages — direction', () => {
   })
 })
 
+describe('fillStages — pinned tracks (co-anchors)', () => {
+  it('always includes pinned tracks, even when the anchor alone meets the duration', () => {
+    const pool = [track('a', 150, 10 * MIN), track('a2', 150), track('a3', 150), ...spread(140, 160)]
+    const out = run([stage('A', 'a', 5 * MIN, ['a2', 'a3'])], pool)
+    expect(ids(out.stages[0]).sort()).toEqual(['a', 'a2', 'a3'])
+    expect(out.stages[0].pinnedTrackIds).toEqual(['a2', 'a3'])
+    expect(out.stages[0].totalMs).toBe(16 * MIN)
+  })
+
+  it('never puts a pinned track in another stage or in unplaced', () => {
+    // b2 sits in A's range by BPM, but it's pinned to B.
+    const pool = [track('a', 150), track('b', 170), track('b2', 151), ...spread(140, 180)]
+    for (const seed of [1, 2, 3, 4, 5]) {
+      const out = run([stage('A', 'a', 30 * MIN), stage('B', 'b', 5 * MIN, ['b2'])], pool, seed)
+      expect(ids(out.stages[0])).not.toContain('b2')
+      expect(ids(out.stages[1])).toContain('b2')
+      expect(out.unplaced.map((t) => t.id)).not.toContain('b2')
+    }
+  })
+
+  it('orders pinned tracks with the rest by direction, counting them in the spread', () => {
+    const pool = [track('a', 150), track('b', 170), track('p', 158), ...spread(160, 180)]
+    const out = run([stage('A', 'a', 3 * MIN, ['p']), stage('B', 'b', 15 * MIN)], pool)
+    expect(out.stages[0].direction).toBe('asc')
+    expect(ids(out.stages[0])).toEqual(['a', 'p'])
+    expect(out.stages[0].spreadBpm).toBe(8)
+
+    const desc = run([stage('B', 'b', 15 * MIN), stage('A', 'a', 3 * MIN, ['p'])], pool)
+    expect(ids(desc.stages[1])).toEqual(['p', 'a'])
+  })
+
+  it('merges then fills: the second anchor stays in the run', () => {
+    const pool = [track('a', 150, 10 * MIN), track('a2', 150), track('b', 170), ...spread(140, 180)]
+    const { stages } = mergeEqualContiguous([stage('A', 'a', 5 * MIN), stage('A2', 'a2', 5 * MIN), stage('B', 'b')], pool)
+    const out = run(stages, pool)
+    expect(ids(out.stages[0])).toContain('a2')
+  })
+})
+
 describe('validateStages', () => {
   const pool = [track('a', 150), track('b', 160), track('c', 170), track('none', null)]
 
@@ -441,6 +484,33 @@ describe('validateStages', () => {
     ])
   })
 
+  it('rejects a pinned track missing from the pool', () => {
+    expect(validateStages([stage('A', 'a', 10 * MIN, ['b', 'zzz'])], pool)).toEqual([
+      { stageId: 'A', reason: 'pinned-missing', blocking: true },
+    ])
+  })
+
+  it('rejects a pinned track without a BPM', () => {
+    expect(validateStages([stage('A', 'a', 10 * MIN, ['none'])], pool)).toEqual([
+      { stageId: 'A', reason: 'pinned-no-bpm', blocking: true },
+    ])
+  })
+
+  it('rejects a track pinned in two stages', () => {
+    expect(validateStages([stage('A', 'a', 10 * MIN, ['c']), stage('B', 'b', 10 * MIN, ['c'])], pool)).toEqual([
+      { stageId: 'B', reason: 'duplicate-anchor', blocking: true },
+    ])
+  })
+
+  it('rejects a track that is both an anchor and pinned', () => {
+    expect(validateStages([stage('A', 'a', 10 * MIN, ['b']), stage('B', 'b')], pool)).toEqual([
+      { stageId: 'B', reason: 'duplicate-anchor', blocking: true },
+    ])
+    expect(validateStages([stage('A', 'a', 10 * MIN, ['a'])], pool)).toEqual([
+      { stageId: 'A', reason: 'duplicate-anchor', blocking: true },
+    ])
+  })
+
   it('flags contiguous equal anchors as a non-blocking notice', () => {
     const pool = [track('a', 150), track('a2', 150), track('b', 160)]
     expect(validateStages([stage('A', 'a'), stage('A2', 'a2')], pool)).toEqual([
@@ -471,6 +541,8 @@ describe('validateStages', () => {
       [[stage('A', 'a'), stage('B', 'b2')], [...pool, track('b2', 150)]],
       [[stage('A', 'a'), stage('A', 'b')], pool],
       [[stage('A', 'a')], [...pool, track('a', 150)]],
+      [[stage('A', 'a', 10 * MIN, ['zzz'])], pool],
+      [[stage('A', 'a', 10 * MIN, ['none'])], pool],
     ]
     for (const [stages, p] of cases) expect(() => fillStages(stages, p, 1)).toThrow(/fillStages/)
   })
@@ -485,25 +557,34 @@ describe('mergeEqualContiguous', () => {
     track('b2', 160),
   ])
 
-  it('merges a pair into the first stage, summing durations', () => {
+  it('merges a pair into the first stage, summing durations and keeping the second anchor as a co-anchor', () => {
     const stages = deepFreeze([stage('A', 'a', 5 * MIN), stage('A2', 'a2', 7 * MIN), stage('B', 'b')])
     const out = mergeEqualContiguous(stages, pool)
-    expect(out.stages).toEqual([stage('A', 'a', 12 * MIN), stage('B', 'b')])
+    expect(out.stages).toEqual([stage('A', 'a', 12 * MIN, ['a2']), stage('B', 'b')])
     expect(out.merged).toEqual([['A', 'A2']])
     expect(validateStages(out.stages, pool)).toEqual([])
   })
 
-  it('merges a run of three', () => {
+  it('merges a run of three, keeping two co-anchors in run order', () => {
     const stages = [stage('A', 'a', MIN), stage('A2', 'a2', 2 * MIN), stage('A3', 'a3', 3 * MIN)]
     const out = mergeEqualContiguous(stages, pool)
-    expect(out.stages).toEqual([stage('A', 'a', 6 * MIN)])
+    expect(out.stages).toEqual([stage('A', 'a', 6 * MIN, ['a2', 'a3'])])
     expect(out.merged).toEqual([['A', 'A2', 'A3']])
+  })
+
+  it('carries over co-anchors the merged stages already had', () => {
+    const p = [...pool, track('a4', 150), track('a5', 150)]
+    const stages = [stage('A', 'a', MIN, ['a4']), stage('A2', 'a2', MIN, ['a5']), stage('A3', 'a3', MIN)]
+    const out = mergeEqualContiguous(stages, p)
+    expect(out.stages).toEqual([stage('A', 'a', 3 * MIN, ['a4', 'a2', 'a5', 'a3'])])
+    expect(validateStages(out.stages, p)).toEqual([])
   })
 
   it('merges separate runs separately', () => {
     const stages = [stage('A', 'a'), stage('A2', 'a2'), stage('B', 'b'), stage('B2', 'b2')]
     const out = mergeEqualContiguous(stages, pool)
     expect(out.stages.map((s) => s.id)).toEqual(['A', 'B'])
+    expect(out.stages.map((s) => s.pinnedTrackIds)).toEqual([['a2'], ['b2']])
     expect(out.merged).toEqual([
       ['A', 'A2'],
       ['B', 'B2'],
@@ -631,5 +712,11 @@ describe('recomputeStage', () => {
 
   it('throws when the anchor is missing', () => {
     expect(() => recomputeStage(filled, [pool[1], pool[2]])).toThrow(/anchor/)
+  })
+
+  it('keeps pinned tracks, and throws when one is missing', () => {
+    const coanchored = fillStages([stage('S', 'anchor', 60 * MIN, ['x'])], pool, 1).stages[0]
+    expect(recomputeStage(coanchored, coanchored.tracks).pinnedTrackIds).toEqual(['x'])
+    expect(() => recomputeStage(coanchored, coanchored.tracks.filter((t) => t.id !== 'x'))).toThrow(/pinned/)
   })
 })

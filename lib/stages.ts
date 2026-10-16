@@ -147,6 +147,10 @@ export function problemMessage(problem: StageProblem, draft: StageDraft | undefi
         ? "Still looking up this song's BPM…"
         : "This song has no BPM, so it can't set the tempo — pick another."
     }
+    case 'pinned-missing':
+      return "A co-anchor isn't in this playlist any more — remove it."
+    case 'pinned-no-bpm':
+      return "A co-anchor has no BPM, so it can't share this stage's tempo — remove it."
     case 'duplicate-anchor':
       return 'Another stage already uses this song as its anchor — pick another.'
     case 'equal-contiguous-anchors':
