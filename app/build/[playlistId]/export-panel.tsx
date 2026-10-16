@@ -11,7 +11,7 @@ import {
 } from '@/lib/export'
 import type { BuildResult } from '@/lib/stages'
 import type { Playlist } from '@/lib/types'
-import { formatDuration } from './track-table'
+import { formatDuration } from './format'
 
 function sentence(message: string): string {
   return message.replace(/\.?$/, '.')

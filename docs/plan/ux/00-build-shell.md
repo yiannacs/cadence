@@ -22,7 +22,7 @@ Move the state and handlers out of `stage-builder.tsx` into a hook, unchanged in
 
 | File | Props | U0 content |
 |---|---|---|
-| `anchor-view.tsx` | `{ playlist, tracks, failed, resolving, stages, dispatch, problems, buildable, onBuild }` | Today's stage list (`StageRow`, `AnchorPicker`), Build button and `TrackTable`, moved here unchanged |
+| `anchor-view.tsx` | `{ playlist, tracks, failed, resolving, stages, dispatch, problems, buildable, built, onBuild }` (`built`: a result exists, so the button reads "Build again") | Today's stage list (`StageRow`, `AnchorPicker`), Build button and `TrackTable`, moved here unchanged |
 | `fill-view.tsx` | `{ result, onMove }` | Placeholder line ("coming soon"); U4 builds it |
 | `arrange-view.tsx` | `{ result, onMove }` | Today's `StageEditor`, minus the notices moved to the shell |
 

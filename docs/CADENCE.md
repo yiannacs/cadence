@@ -105,9 +105,9 @@ Then, once those two work: pick a source playlist → fetch + cache BPM for its 
 
 1. Log in with Spotify.
 2. Pick a source playlist.
-3. Define stages in run order: for each, set a duration and pick an anchor song from the playlist.
+3. **Anchors:** drag songs from the playlist (sorted by BPM, no-BPM songs last) into the run to make them stage anchors, and set each stage's duration. A song with the same BPM as a neighbouring stage's anchor joins that stage as a **co-anchor**: always included, but only the first song sets the tempo.
 4. App fetches/caches BPM and fills each stage (nearest-to-anchor within its range, deduped, until duration met, ordered by direction).
-5. Show the staged result; user can drag any/unmatched tracks between stages (synthetic BPM cached on drop). Stages are re-ordered by their direction after each drop.
+5. Edit the staged result in two views. **Fill:** drag unplaced songs onto stages. **Arrange:** every song of every stage, plus the Unplaced bin; picking a song up collapses the stages to their headers so any destination is a short move. A song without a BPM dropped into a stage takes the stage's tempo as a synthetic BPM (cached). Stages are re-ordered by their direction after each drop; anchors and co-anchors stay in their stage.
 6. Export → saves the ordered playlist to Spotify.
 
 ---
