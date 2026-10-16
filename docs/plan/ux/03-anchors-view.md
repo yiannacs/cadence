@@ -19,6 +19,7 @@ Pick anchors by dragging songs from the playlist into the run, instead of openin
   - `rename`, `set-duration` as today; `remove { id }` removes a stage and all its songs.
 - **Grouping is kept up to date**: after every action, contiguous stages whose anchors have equal BPMs are merged (first stage's id and name, durations summed, songs concatenated). Every action carries `bpmById` (the tracks' current BPMs), so the reducer stays pure. `mergeEqualContiguous` at Build remains as a safety net (e.g. a BPM changed after placing).
 - `validateDrafts` drops the "unpicked stage" noise filter (no stage is unpicked any more). `buildKey` includes every song ID.
+- `problemMessage` already words U2's `pinned-missing` and `pinned-no-bpm`; adjust the wording to the board if needed (e.g. point at the card's co-anchor row).
 - Default run: empty. The `warmup / build / peak / cooldown` template goes away — names are optional and stages appear as songs are dropped.
 - `localStorage` version 2. A v1 value migrates: stages with an anchor become `songIds: [anchorTrackId]`; stages without one are dropped.
 - `filterTracks` uses `matchesQuery` from `lib/search.ts` (U1).
@@ -27,10 +28,17 @@ Pick anchors by dragging songs from the playlist into the run, instead of openin
 ### 2. Left pane — the song list
 
 - Replaces `TrackTable`: title, artist, duration, BPM, source badge, and the per-track lookup error as today.
-- **Sort:** playlist order while BPM lookups are running; `sortForBoard` once the resolution pass finishes (`phase === 'idle'`). Sorting mid-lookup would make rows jump under the cursor.
+- **Sort:** playlist order while BPM lookups are running; `sortForBoard` once the resolution pass finishes (the view's `resolving` prop turns false). Sorting mid-lookup would make rows jump under the cursor.
+- Per-track lookup errors come from the `failed` prop (track ID → message).
 - **Search** box at the top (title/artist via `filterTracks`).
 - Songs with a BPM are draggable. No-BPM songs are greyed with "no BPM — can't anchor" (or "BPM lookup pending"), not draggable. Songs already in the run are marked with their stage's label and not draggable from the left (drag them on the right instead).
 - Dropping a song from the right pane back onto the left pane = `unplace`.
+
+### Layout
+
+The shell gives the view a scrolling region the height of the rest of the viewport (`#build-view` in `builder.tsx`). The view takes `h-full` with a two-column grid (`lg:grid-cols-2`, stacked below `lg`), each pane `min-h-0 overflow-y-auto`, so the panes scroll independently and the region itself doesn't. The Anchors tab has no Export panel below it.
+
+The view's props are fixed by U0: `{ playlist, tracks, failed, resolving, stages, dispatch, problems, buildable, built, onBuild }`. `built` (a result exists) makes the button read "Build again" and shows the re-roll hint; `onBuild` runs the Build and switches to Fill. The open-picker state in today's `anchor-view.tsx` goes away with the picker.
 
 ### 3. Right pane — the run
 
@@ -43,7 +51,8 @@ Pick anchors by dragging songs from the playlist into the run, instead of openin
 
 - Left pane: the handle picks a song up; arrow keys move the insertion point through the gaps of the run; Space/Enter drops; Escape cancels. Plus an "Add to run" button on each row (appends at the end) for a no-drag path.
 - Right pane: sortable's keyboard coordinates for reordering stages.
-- Announcements: "Picked up X", "X will start a new stage after Y", "X will join Y (same tempo)", "X removed from the run".
+- Announcements: "Picked up X", "X will start a new stage after Y", "X will join Y (same tempo)", "X removed from the run". These are the view's own `Announcements`; `trackAnnouncements` in `dnd.tsx` is for moves within a result and doesn't fit here.
+- `TrackRow` (`dnd.tsx`) with `badge="anchor"` / `badge="co-anchor"` can render the song rows; `DropZone` and `droppableId` are keyed by result containers, so the board uses its own droppable IDs (e.g. `board`, `gap:<index>`).
 
 ### 5. Cleanup
 

@@ -10,13 +10,13 @@ Move songs between stages with little mouse travel. One pane shows every song of
 
 ### 1. Layout at rest
 
-- Today's editor, one column: a `DropZone` per stage with header (glyph, label, center BPM, range, count, total / target, shortfall) and **every** song, then the Unplaced bin (collapsed by default to its header + count, expandable).
-- Every song is draggable except anchors and co-anchors (U2), which are marked and can't leave their stage.
+- Today's editor (`stage-editor.tsx`, wrapped by `arrange-view.tsx`), one column: a `DropZone` per stage with header (glyph, label, center BPM, range, count, total / target, shortfall) and **every** song, then the Unplaced bin (collapsed by default to its header + count, expandable). The result notices live in the shell above the view, and Export below it.
+- Anchors and co-anchors (U2) carry their badge and can't leave their stage; the editor already refuses those drops. Make their rows non-draggable instead of letting the drop be refused.
 
 ### 2. Collapse on pickup
 
 - On drag start, render every stage (and Unplaced) as its header only — about one line each. The dragged song follows the pointer in the `DragOverlay`, so it stays visible while its source list collapses.
-- **Keep the source under the pointer.** Collapsing shifts everything up. Right after the collapsed layout renders (`useLayoutEffect`), scroll so the source stage's header sits at the pointer's Y position (pointer Y from the activator event; for keyboard drags, keep the source header where the handle was). Clamp at the top of the page.
+- **Keep the source under the pointer.** Collapsing shifts everything up. Right after the collapsed layout renders (`useLayoutEffect`), scroll so the source stage's header sits at the pointer's Y position (pointer Y from the activator event; for keyboard drags, keep the source header where the handle was). The window doesn't scroll on the build page: the scroll container is the shell's view region (`#build-view` in `builder.tsx`, the nearest scrolling ancestor), so adjust its `scrollTop`, clamped at 0.
 - **Measure after collapsing.** Droppable rects must reflect the collapsed layout: `DndContext measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}`. Without it, drops land on where stages *were*.
 - On drop or cancel: expand, then scroll so the destination stage's header is where the pointer was (or `scrollIntoView({ block: 'nearest' })` if that's off-page). The moved song highlights briefly in its new place.
 - Collapsed headers are the drop targets: border highlight when allowed, red with "Anchors stay in their stage" when refused, as today.
